@@ -122,7 +122,6 @@
         "description": "",
         "admin_state_up": true,
         "tenant_id": "cd6a91ccb44945129ac78e7c992655eb",
-        "session_persistence": "",
         "healthmonitor_id": "42dc3312-332a-405d-a761-4c517b4dda92",
         "listeners": [
           {
@@ -136,7 +135,11 @@
           "64dddc23-5057-4ca6-b8ed-95b95f917928"
         ],
         "id": "9c78a69e-9cd5-4d51-ba02-2d9cfde043a2",
-        "name": "pool1"
+        "name": "pool1",
+        "session_persistence": {
+            "cookie_name": "my_cookie",
+            "type": "APP_COOKIE"
+        }
       }
     ],
     "members": [

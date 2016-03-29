@@ -48,12 +48,14 @@ class PoolServiceBuilder(object):
 
         :param service: Dictionary which contains a both a pool
         and load balancer definition.
-        :param bigips: Array of BigIP class instances to create Listener.
+        :param bigips: Array of BigIP class instances to create pool.
         """
         pool = self.service_adapter.get_pool(service)
+
         for bigip in bigips:
             try:
                 self.pool_helper.create(bigip, pool)
+
             except HTTPError as err:
                 LOG.error("Error creating pool %s on BIG-IP %s. "
                           "Repsponse status code: %s. Response "
@@ -78,6 +80,7 @@ class PoolServiceBuilder(object):
                 self.pool_helper.delete(bigip,
                                         name=pool["name"],
                                         partition=pool["partition"])
+
             except HTTPError as err:
                 LOG.error("Error deleting pool %s on BIG-IP %s. "
                           "Repsponse status code: %s. Response "
@@ -91,9 +94,10 @@ class PoolServiceBuilder(object):
 
         :param service: Dictionary which contains a both a pool
         and load balancer definition.
-        :param bigip: Array of BigIP class instances to create Listener.
+        :param bigips: Array of BigIP class instances to create pool.
         """
         pool = self.service_adapter.get_pool(service)
+
         for bigip in bigips:
             try:
                 self.pool_helper.update(bigip, pool)
@@ -106,13 +110,17 @@ class PoolServiceBuilder(object):
                                             err.message))
 
     def create_healthmonitor(self, service, bigips):
-        # create member
         hm = self.service_adapter.get_healthmonitor(service)
         hm_helper = self._get_monitor_helper(service)
+        pool = self.service_adapter.get_pool(service)
 
         for bigip in bigips:
             try:
                 hm_helper.create(bigip, hm)
+
+                # update pool with new health monitor
+                self.pool_helper.update(bigip, pool)
+
             except HTTPError as err:
                 LOG.error("Error creating health monitor %s on BIG-IP %s. "
                           "Repsponse status code: %s. Response "
@@ -120,11 +128,6 @@ class PoolServiceBuilder(object):
                                             bigip.device_name,
                                             err.response.status_code,
                                             err.message))
-
-        # update pool with new health monitor
-        pool = self.service_adapter.get_pool(service)
-        for bigip in bigips:
-            self.pool_helper.update(bigip, pool)
 
     def delete_healthmonitor(self, service, bigips):
         # delete health monitor
@@ -146,6 +149,7 @@ class PoolServiceBuilder(object):
                                             bigip.device_name,
                                             err.response.status_code,
                                             err.message))
+
             try:
                 hm_helper.delete(bigip,
                                  name=hm["name"],
@@ -163,7 +167,7 @@ class PoolServiceBuilder(object):
         hm_helper = self._get_monitor_helper(service)
         for bigip in bigips:
             try:
-                hm_helper.delete(bigip,
+                hm_helper.update(bigip,
                                  name=hm["name"],
                                  partition=hm["partition"])
             except HTTPError as err:
@@ -275,7 +279,6 @@ class PoolServiceBuilder(object):
 
     def update_member(self, service, bigips):
         # TODO(jl) handle state -- SDK enforces at least state=None
-
         pool = self.service_adapter.get_pool(service)
         member = self.service_adapter.get_member(service)
         part = pool["partition"]
