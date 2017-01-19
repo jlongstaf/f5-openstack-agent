@@ -879,6 +879,25 @@ class iControlDriver(LBaaSBaseDriver):
         finally:
             return lb_stats
 
+    @is_connected
+    def update_operating_status(self, service):
+        # append route domain to member address
+        self.network_builder._annotate_service_route_domains(service)
+        self.lbaas_builder.update_operating_status(service)
+        self._update_service_status(service)
+
+    def get_active_bigip(self):
+        bigips = self.get_all_bigips()
+        if len(bigips) == 1:
+            return bigips[0]
+
+        for bigip in bigips:
+            if self.cluster_manager.is_device_active(bigip):
+                return bigip
+
+        # if can't determine active, default to first one
+        return bigips[0]
+
     @serialized('remove_orphans')
     def remove_orphans(self, all_loadbalancers):
         """Remove out-of-date configuration on big-ips """
@@ -1264,81 +1283,62 @@ class iControlDriver(LBaaSBaseDriver):
     def _update_member_status(self, members):
         """Update member status in OpenStack """
         for member in members:
-            if 'provisioning_status' in member:
-                provisioning_status = member['provisioning_status']
-                if (provisioning_status == plugin_const.PENDING_CREATE or
-                        provisioning_status == plugin_const.PENDING_UPDATE):
-                        self.plugin_rpc.update_member_status(
-                            member['id'],
-                            plugin_const.ACTIVE,
-                            lb_const.ONLINE
-                        )
-                elif provisioning_status == plugin_const.PENDING_DELETE:
-                    self.plugin_rpc.member_destroyed(
-                        member['id'])
-                elif provisioning_status == plugin_const.ERROR:
-                    self.plugin_rpc.update_member_status(member['id'])
+            provisioning_status = member.get('provisioning_status', None)
+            operating_status = member.get('operating_status', None)
+
+            if provisioning_status == plugin_const.PENDING_DELETE:
+                self.plugin_rpc.member_destroyed(member['id'])
+            else:
+                self.plugin_rpc.update_member_status(
+                    member['id'],
+                    provisioning_status=provisioning_status,
+                    operating_status=operating_status)
 
     def _update_health_monitor_status(self, health_monitors):
         """Update pool monitor status in OpenStack """
         for health_monitor in health_monitors:
-            if 'provisioning_status' in health_monitor:
-                provisioning_status = health_monitor['provisioning_status']
-                if (provisioning_status == plugin_const.PENDING_CREATE or
-                        provisioning_status == plugin_const.PENDING_UPDATE):
-                        self.plugin_rpc.update_health_monitor_status(
-                            health_monitor['id'],
-                            plugin_const.ACTIVE,
-                            lb_const.ONLINE
-                        )
-                elif provisioning_status == plugin_const.PENDING_DELETE:
-                    self.plugin_rpc.health_monitor_destroyed(
-                        health_monitor['id'])
-                elif provisioning_status == plugin_const.ERROR:
-                    self.plugin_rpc.update_health_monitor_status(
-                        health_monitor['id'])
+            provisioning_status = health_monitor.get('provisioning_status',
+                                                     None)
+            operating_status = health_monitor.get('operating_status', None)
+
+            if provisioning_status == plugin_const.PENDING_DELETE:
+                self.plugin_rpc.health_monitor_destroyed(health_monitor['id'])
+            else:
+                self.plugin_rpc.update_health_monitor_status(
+                    health_monitor['id'],
+                    provisioning_status=provisioning_status,
+                    operating_status=operating_status)
 
     @log_helpers.log_method_call
     def _update_pool_status(self, pools):
         """Update pool status in OpenStack """
         for pool in pools:
-            if 'provisioning_status' in pool:
-                provisioning_status = pool['provisioning_status']
-                if (provisioning_status == plugin_const.PENDING_CREATE or
-                        provisioning_status == plugin_const.PENDING_UPDATE):
-                        self.plugin_rpc.update_pool_status(
-                            pool['id'],
-                            plugin_const.ACTIVE,
-                            lb_const.ONLINE
-                        )
-                elif provisioning_status == plugin_const.PENDING_DELETE:
-                    self.plugin_rpc.pool_destroyed(
-                        pool['id'])
-                elif provisioning_status == plugin_const.ERROR:
-                    self.plugin_rpc.update_pool_status(pool['id'])
+            provisioning_status = pool.get('provisioning_status', None)
+            operating_status = pool.get('operating_status', None)
+
+            if provisioning_status == plugin_const.PENDING_DELETE:
+                self.plugin_rpc.pool_destroyed(pool['id'])
+            else:
+                self.plugin_rpc.update_pool_status(
+                    pool['id'],
+                    provisioning_status=provisioning_status,
+                    operating_status=operating_status)
 
     @log_helpers.log_method_call
     def _update_listener_status(self, service):
         """Update listener status in OpenStack """
         listeners = service['listeners']
         for listener in listeners:
-            if 'provisioning_status' in listener:
-                provisioning_status = listener['provisioning_status']
-                if (provisioning_status == plugin_const.PENDING_CREATE or
-                        provisioning_status == plugin_const.PENDING_UPDATE):
-                        self.plugin_rpc.update_listener_status(
-                            listener['id'],
-                            plugin_const.ACTIVE,
-                            listener['operating_status']
-                        )
-                elif provisioning_status == plugin_const.PENDING_DELETE:
-                    self.plugin_rpc.listener_destroyed(
-                        listener['id'])
-                elif provisioning_status == plugin_const.ERROR:
-                    self.plugin_rpc.update_listener_status(
-                        listener['id'],
-                        provisioning_status,
-                        lb_const.OFFLINE)
+            provisioning_status = listener.get('provisioning_status', None)
+            operating_status = listener.get('operating_status', None)
+
+            if provisioning_status == plugin_const.PENDING_DELETE:
+                self.plugin_rpc.listener_destroyed(listener['id'])
+            else:
+                self.plugin_rpc.update_listener_status(
+                    listener['id'],
+                    provisioning_status=provisioning_status,
+                    operating_status=operating_status)
 
     @log_helpers.log_method_call
     def _update_loadbalancer_status(self, service):

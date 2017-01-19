@@ -458,3 +458,33 @@ class ListenerServiceBuilder(object):
                 LOG.error("Error getting virtual server stats: %s", e.message)
 
         return collected_stats
+
+    def get_listener_status(self, service, bigip, status_keys):
+        """Return stat values for a single virtual.
+
+        Status keys to collect are defined as an array of strings in input
+        status_keys.
+
+        :param service: Has listener name/partition
+        :param bigip: BIG-IP to get listener status from.
+        :param status_keys: Array of strings that define which status keys to
+        collect.
+        :return: A dict with key/value pairs for each status defined in
+        input status_keys.
+        """
+
+        virtual = self.service_adapter.get_virtual(service)
+        part = virtual["partition"]
+        try:
+            vs_status = self.vs_helper.get_stats(
+                bigip,
+                name=virtual["name"],
+                partition=part,
+                stat_keys=status_keys)
+
+        except Exception as e:
+            # log error but continue on
+            vs_status = {}
+            LOG.error("Error getting virtual server stats: %s", e.message)
+
+        return vs_status

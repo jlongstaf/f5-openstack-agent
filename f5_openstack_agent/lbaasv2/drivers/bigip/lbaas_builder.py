@@ -19,6 +19,7 @@ from time import time
 from oslo_log import log as logging
 
 from neutron.plugins.common import constants as plugin_const
+from neutron_lbaas.services.loadbalancer import constants as lb_const
 
 from f5_openstack_agent.lbaasv2.drivers.bigip import exceptions as f5_ex
 from f5_openstack_agent.lbaasv2.drivers.bigip import listener_service
@@ -125,11 +126,11 @@ class LBaaSBuilder(object):
                 try:
                     # create_listener() will do an update if VS exists
                     self.listener_builder.create_listener(svc, bigips)
-                    listener['operating_status'] = \
-                        svc['listener']['operating_status']
+                    listener['provisioning_status'] = plugin_const.ACTIVE
                 except Exception as err:
                     loadbalancer['provisioning_status'] = plugin_const.ERROR
                     listener['provisioning_status'] = plugin_const.ERROR
+                    listener['operating_status'] = lb_const.OFFLINE
                     raise f5_ex.VirtualServerCreationException(err.message)
 
     def _assure_pools_created(self, service):
@@ -162,9 +163,12 @@ class LBaaSBuilder(object):
                     # update virtual sever pool name, session persistence
                     self.listener_builder.update_session_persistence(
                         svc, bigips)
+
+                    pool['provisioning_status'] = plugin_const.ACTIVE
                 except HTTPError as err:
                     if err.response.status_code != 409:
                         pool['provisioning_status'] = plugin_const.ERROR
+                        pool['operating_status'] = lb_const.OFFLINE
                         loadbalancer['provisioning_status'] = (
                             plugin_const.ERROR
                         )
@@ -208,6 +212,7 @@ class LBaaSBuilder(object):
             else:
                 try:
                     self.pool_builder.create_healthmonitor(svc, bigips)
+                    monitor['provisioning_status'] = plugin_const.ACTIVE
                 except HTTPError as err:
                     if err.response.status_code != 409:
                         # pool['provisioning_status'] = plugin_const.ERROR
@@ -247,17 +252,17 @@ class LBaaSBuilder(object):
                     self.pool_builder.create_member(svc, bigips)
                 except HTTPError as err:
                     if err.response.status_code != 409:
-                        # FIXME(RB)
-                        # pool['provisioning_status'] = plugin_const.ERROR
-                        loadbalancer['provisioning_status'] = (
-                            plugin_const.ERROR
-                        )
+                        member['provisioning_status'] = plugin_const.ERROR
                         raise f5_ex.MemberCreationException(err.message)
                     else:
                         self.pool_builder.update_member(svc, bigips)
                 except Exception as err:
                     member['provisioning_status'] = plugin_const.ERROR
-                    raise f5_ex.MemberCreateException(err.message)
+                    raise f5_ex.MemberCreationException(err.message)
+
+                # leave operating_status unset and let periodic task update
+                # actual status next time it fires
+                member['provisioning_status'] = plugin_const.ACTIVE
 
             self._update_subnet_hints(member["provisioning_status"],
                                       member["subnet_id"],
@@ -446,3 +451,72 @@ class LBaaSBuilder(object):
                 collected_stats[stat] += vs_stats[stat]
 
         return collected_stats
+
+    def update_operating_status(self, service):
+        """Query virtual servers, pools, members to update operating status."""
+        bigip = self.driver.get_active_bigip()
+        loadbalancer = service["loadbalancer"]
+        status_keys = ['status.availabilityState',
+                       'status.enabledState']
+
+        # listeners
+        listeners = service["listeners"]
+        for listener in listeners:
+            if listener['provisioning_status'] == plugin_const.ACTIVE:
+                svc = {"loadbalancer": loadbalancer, "listener": listener}
+                status = self.listener_builder.get_listener_status(
+                    svc, bigip, status_keys)
+                listener['operating_status'] = self.convert_operating_status(
+                    status)
+
+        # pools
+        pools = service["pools"]
+        for pool in pools:
+            if pool['provisioning_status'] == plugin_const.ACTIVE:
+                svc = {"loadbalancer": loadbalancer, "pool": pool}
+                status = self.pool_builder.get_pool_status(
+                    svc, bigip, status_keys)
+                pool['operating_status'] = self.convert_operating_status(
+                    status)
+
+        # members
+        members = service["members"]
+        for member in members:
+            if member['provisioning_status'] == plugin_const.ACTIVE:
+                pool = self.get_pool_by_id(service, member["pool_id"])
+                svc = {"loadbalancer": loadbalancer,
+                       "member": member,
+                       "pool": pool}
+                status = self.pool_builder.get_member_status(
+                    svc, bigip, status_keys)
+                member['operating_status'] = self.convert_operating_status(
+                    status)
+
+    @staticmethod
+    def convert_operating_status(status):
+        """Convert object status to LBaaS operating status.
+
+        status.availabilityState and  status.enabledState = Operating Status
+
+        available                     enabled                 ONLINE
+        available                     disabled                DISABLED
+        offline                       -                       OFFLINE
+        unknown                       -                       NO_MONITOR
+        """
+        op_status = None
+        available = status.get('status.availabilityState', '')
+        if available == 'available':
+            enabled = status.get('status.enabledState', '')
+            if enabled == 'enabled':
+                op_status = lb_const.ONLINE
+            elif enabled == 'disabled':
+                op_status = lb_const.DISABLED
+            else:
+                LOG.warning('Unexpected value %s for status.enabledState',
+                            enabled)
+        elif available == 'offline':
+            op_status = lb_const.OFFLINE
+        elif available == 'unknown':
+            op_status = lb_const.NO_MONITOR
+
+        return op_status

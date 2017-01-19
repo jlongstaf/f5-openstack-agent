@@ -265,22 +265,31 @@ class BigIPResourceHelper(object):
         # get resource, then its stats
         if self.exists(bigip, name=name, partition=partition):
             resource = self.load(bigip, name=name, partition=partition)
-            resource_stats = resource.stats.load()
-            stat_entries = resource_stats.entries
+            collected_stats = self.collect_stats(resource, stat_keys)
 
-            # Difference between 11.6 and 12.1. Stats in 12.1 are embedded
-            # in nestedStats. In 11.6, they are directly accessible in entries.
-            if stat_keys[0] not in stat_entries:
-                # find nestedStats
-                for key in stat_entries.keys():
-                    value = stat_entries.get(key, None)
-                    if 'nestedStats' in value:
-                        stat_entries = value['nestedStats']['entries']
+        return collected_stats
 
-            # add stats defined in input stats array
-            for stat_key in stat_keys:
-                if stat_key in stat_entries:
+    def collect_stats(self, resource, stat_keys=[]):
+        collected_stats = {}
+        resource_stats = resource.stats.load()
+        stat_entries = resource_stats.entries
+
+        # Difference between 11.6 and 12.1. Stats in 12.1 are embedded
+        # in nestedStats. In 11.6, they are directly accessible in entries.
+        if stat_keys[0] not in stat_entries:
+            # find nestedStats
+            for key in stat_entries.keys():
+                value = stat_entries.get(key, None)
+                if 'nestedStats' in value:
+                    stat_entries = value['nestedStats']['entries']
+
+        # add stats defined in input stats array
+        for stat_key in stat_keys:
+            if stat_key in stat_entries:
+                if 'value' in stat_entries[stat_key]:
+                    collected_stats[stat_key] = stat_entries[stat_key]['value']
+                elif 'description' in stat_entries[stat_key]:
                     collected_stats[stat_key] = \
-                        stat_entries[stat_key]['value']
+                        stat_entries[stat_key]['description']
 
         return collected_stats
