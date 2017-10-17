@@ -92,7 +92,7 @@ rst_prolog = '''
 
 # OpenStack release
 
-openstack_release = "Newton"
+openstack_release = "ocata"
 rst_epilog = """
 .. |openstack| replace:: {0}
 """.format(openstack_release)
@@ -391,7 +391,7 @@ rst_epilog = '''
 
     <a class="btn btn-success" href="https://github.com/F5Networks/f5-openstack-agent/releases/tag/v%(version)s/">Release Notes</a>
 .. _Hierarchical Port Binding: /cloud/openstack/latest/lbaas/hierarchical-port-binding.html
-.. _external provider network: https://docs.openstack.org/newton/networking-guide/intro-os-networking.html#provider-networks
+.. _external provider network: https://docs.openstack.org/ocata/networking-guide/intro-os-networking.html#provider-networks
 .. _Cisco ACI: http://www.cisco.com/c/en/us/solutions/data-center-virtualization/application-centric-infrastructure/index.html
 .. _system configuration: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-system-initial-configuration-13-0-0/2.html
 .. _local traffic management: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-basics-13-0-0.html

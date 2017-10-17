@@ -78,7 +78,7 @@ BRANCH := master
 # The branch may contain the text 'stable/' before the OpenStack release name
 # To allow this type of branch name and any other to work with the cloud deployment
 # and with Jenkins, we should strip out the forward slash, leaving something like:
-# stable/newton -> stablenewton
+# stable/ocata -> stableocata
 SANITIZED_BRANCH := $(subst /,,$(BRANCH))
 
 # /ASB/PATH/systest/test_results: This is where the CI system will look

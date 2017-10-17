@@ -4,9 +4,9 @@ export TIMESTAMP=`date +"%Y%m%d-%H%M%S"`
 # This is approximately the same as GUMBALLS_SESSION
 export SESSIONLOGDIR=${TAGINFO}_$TIMESTAMP
 
-export TRTLRESULTSDIR=`pwd`/systest/test_results/f5-openstack-agent_newton-unit
+export TRTLRESULTSDIR=`pwd`/systest/test_results/f5-openstack-agent_ocata-unit
 mkdir -p ${TRTLRESULTSDIR}
-sudo -E docker pull docker-registry.pdbld.f5net.com/openstack-test-agentunitrunner-prod/newton
+sudo -E docker pull docker-registry.pdbld.f5net.com/openstack-test-agentunitrunner-prod/ocata
 
 sudo -E docker run \
                 -u jenkins \
@@ -14,7 +14,7 @@ sudo -E docker run \
                 -v `pwd`:`pwd` \
                 -w `pwd` \
 docker-registry.pdbld.f5net.com\
-/openstack-test-agentunitrunner-prod/newton:latest \
+/openstack-test-agentunitrunner-prod/ocata:latest \
 ${TRTLRESULTSDIR} $SESSIONLOGDIR
 
 sudo -E chown -Rf jenkins:jenkins .
