@@ -436,6 +436,9 @@ class iControlDriver(LBaaSBaseDriver):
                       % str(exc))
             self._set_agent_status(False)
 
+    def set_tunnel_handler(tunnel_handler):
+        self.tunnel_handler = tunnel_handler
+
     def _init_bigip_managers(self):
 
         if self.conf.vlan_binding_driver:
